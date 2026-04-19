@@ -1,0 +1,3 @@
+C:/Users/braya/Codes/CTCO/algoritmos_ordenacao/trabalho1/build/CMakeFiles/trabalho.dir
+C:/Users/braya/Codes/CTCO/algoritmos_ordenacao/trabalho1/build/CMakeFiles/edit_cache.dir
+C:/Users/braya/Codes/CTCO/algoritmos_ordenacao/trabalho1/build/CMakeFiles/rebuild_cache.dir

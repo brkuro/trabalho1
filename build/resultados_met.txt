@@ -1,0 +1,2 @@
+Comparacoes: 78201
+Movimentacoes: 63206
