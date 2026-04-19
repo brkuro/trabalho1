@@ -1,0 +1,8 @@
+[
+{
+  "directory": "C:/Users/braya/Codes/CTCO/algoritmos_ordenacao/trabalho1/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\gcc.exe  @CMakeFiles/trabalho.dir/includes_C.rsp -g -std=gnu11 -o CMakeFiles\\trabalho.dir\\main.c.obj -c C:\\Users\\braya\\Codes\\CTCO\\algoritmos_ordenacao\\trabalho1\\main.c",
+  "file": "C:/Users/braya/Codes/CTCO/algoritmos_ordenacao/trabalho1/main.c",
+  "output": "CMakeFiles/trabalho.dir/main.c.obj"
+}
+]
