@@ -9,10 +9,6 @@ CMakeFiles/trabalho.dir/main.c.obj: \
  C:/msys64/ucrt64/include/_mingw_off_t.h \
  C:/msys64/ucrt64/include/swprintf.inl \
  C:/msys64/ucrt64/include/sec_api/stdio_s.h \
-<<<<<<< HEAD
-=======
- C:\Users\braya\Codes\CTCO\algoritmos_ordenacao\trabalho1\ordenacao.h \
->>>>>>> b50bc7f737ea78efbef806dc89ef38ade6d649de
  C:/msys64/ucrt64/include/stdlib.h \
  C:/msys64/ucrt64/include/corecrt_wstdlib.h \
  C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/limits.h \
@@ -21,16 +17,10 @@ CMakeFiles/trabalho.dir/main.c.obj: \
  C:/msys64/ucrt64/include/sec_api/stdlib_s.h \
  C:/msys64/ucrt64/include/malloc.h \
  C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/15.2.0/include/mm_malloc.h \
-<<<<<<< HEAD
  C:/msys64/ucrt64/include/errno.h C:/msys64/ucrt64/include/time.h \
  C:/msys64/ucrt64/include/sys/timeb.h \
  C:/msys64/ucrt64/include/sec_api/sys/timeb_s.h \
  C:/msys64/ucrt64/include/_timeval.h \
  C:/msys64/ucrt64/include/pthread_time.h \
  C:/msys64/ucrt64/include/pthread_compat.h \
- C:/msys64/ucrt64/include/string.h \
- C:/msys64/ucrt64/include/sec_api/string_s.h \
  C:\Users\braya\Codes\CTCO\algoritmos_ordenacao\trabalho1\ordenacao.h
-=======
- C:/msys64/ucrt64/include/errno.h
->>>>>>> b50bc7f737ea78efbef806dc89ef38ade6d649de

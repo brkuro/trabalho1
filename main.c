@@ -1,171 +1,231 @@
 #include <stdio.h>
-<<<<<<< HEAD
 #include <stdlib.h>
 #include <time.h>
-#include <string.h>
 #include "ordenacao.h"
 
-// Estrutura para consolidar os resultados de cada teste individual
+// enumeração dos métodos de 0 à 6
+// facilita a chamada dos métodos, pois permite o uso da estrutura switch-case
+typedef enum {
+    BOLHAINTELIGENTE,
+    SELECAO,
+    INSERCAO,
+    MERGE,
+    QUICK,
+    SHELL,
+    HEAP
+} Algoritmo;
+
+// tipo definido para armazenar os resultados do benchmark
 typedef struct {
     double tempo;
     unsigned long long comparacoes;
     unsigned long long movimentacoes;
+    int estavel;
 } Resultado;
 
-// IDs para identificar os algoritmos no sistema
-typedef enum {
-    BOLHA = 1, SELECAO, INSERCAO, MERGE, QUICK, SHELL, HEAP, BOZO
-} AlgoritmoID;
-
-// Protótipos das funções do sistema de benchmarking
-Resultado executa_teste(int tam, int cenario, unsigned int seed, AlgoritmoID alg);
-void realizar_benchmark(AlgoritmoID alg, char *nomeAlg);
-
-int main() {
-    
-    printf("SISTEMA DE BENCHMARKING - ALGORITMOS DE ORDENACAO\n");
-    printf("Iniciando bateria de testes...\n\n");
-
-    // Exemplo de execução para dois algoritmos
-    realizar_benchmark(SELECAO, "Selecao");
-    
-
-    printf("\nBenchmark concluido com sucesso. Verifique os arquivos .csv gerados.\n");
-    return 0;
-}
-
-/**
- * Executa o benchmark completo para um algoritmo em todos os cenários e tamanhos.
- */
-void realizar_benchmark(AlgoritmoID alg, char *nomeAlg) {
-    int tamanhos[] = {1000, 5000, 10000}; // Defina os N do seu projeto
-    int n_tamanhos = 3;
-    unsigned int seed_base = 2026;
-    
-    char nomeArquivo[100];
-    sprintf(nomeArquivo, "relatorio_%s.csv", nomeAlg);
-    FILE *f = fopen(nomeArquivo, "w");
-    
-    if (!f) return;
-
-    // 
-    fprintf(f, "Tamanho;Aleatorio (Med);Crescente;Decrescente;Quase Ordenado (Med)\n");
-
-    for (int i = 0; i < n_tamanhos; i++) {
-        int n = tamanhos[i];
-        Resultado res[4]; // 0: Aleat, 1: Cresc, 2: Decresc, 3: Quase
-
-        // --- CENÁRIO: ALEATÓRIO (Média de 30 repetições) ---
-        double soma_t = 0, soma_c = 0, soma_m = 0;
-        for (int j = 0; j < 30; j++) {
-            Resultado r = executa_teste(n, 0, seed_base + j, alg);
-            soma_t += r.tempo; soma_c += r.comparacoes; soma_m += r.movimentacoes;
-        }
-        res[0].tempo = soma_t / 30.0;
-        res[0].comparacoes = (unsigned long long)(soma_c / 30);
-        res[0].movimentacoes = (unsigned long long)(soma_m / 30);
-
-        // --- CENÁRIO: CRESCENTE (1 repetição) ---
-        res[1] = executa_teste(n, 1, seed_base, alg);
-
-        // --- CENÁRIO: DECRESCENTE (1 repetição) ---
-        res[2] = executa_teste(n, 2, seed_base, alg);
-
-        // --- CENÁRIO: QUASE ORDENADO (Média de 30 repetições) ---
-        soma_t = 0; soma_c = 0; soma_m = 0;
-        for (int j = 0; j < 30; j++) {
-            Resultado r = executa_teste(n, 3, seed_base + j, alg);
-            soma_t += r.tempo; soma_c += r.comparacoes; soma_m += r.movimentacoes;
-        }
-        res[3].tempo = soma_t / 30.0;
-
-        // Salva a linha de tempo no CSV (pode criar outros arquivos para comparacoes/movimentacoes)
-        fprintf(f, "%d;%.6f;%.6f;%.6f;%.6f\n", n, res[0].tempo, res[1].tempo, res[2].tempo, res[3].tempo);
+// le as métricas do teste armazenadas em um vetor e as copia para as variáveis comp e mov
+void lerMetricasArquivo(char *nomeArquivo, unsigned long long *comp, unsigned long long *mov) {
+    FILE *arq = fopen(nomeArquivo, "r");
+    if (!arq) {
+        *comp = 0;
+        *mov = 0;
+        return;
     }
-
-    fclose(f);
+    fscanf(arq, "Comparacoes: %llu\n", comp);
+    fscanf(arq, "Movimentacoes: %llu\n", mov);
+    fclose(arq);
 }
 
-Resultado executa_teste(int tam, int cenario, unsigned int seed, AlgoritmoID alg) {
+// função que verifica a estabilidade dos métodos
+// se for estável retorna 1, caso contrário retorna 0
+// em caso de erro de leitura do arquivo retorna -1
+int verificarEstabilidade(char *nomeArquivo) {
+    int id1, t1, id2, t2;
+    FILE *arq = fopen(nomeArquivo, "r");
+
+    if (!arq || (fscanf(arq, "%d %d", &id1, &t1) != 2))
+        return -1;
+
+    while (fscanf(arq, "%d %d", &id2, &t2) == 2) {
+        if (id1 == id2 && t1 > t2) {
+            fclose(arq);
+            return 0;
+        }
+        id1 = id2;
+        t1 = t2;
+    }
+    fclose(arq);
+    return 1;
+}
+
+// realiza o teste e retorna o resultado
+Resultado benchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
     r *vet;
     met *m = NULL;
-    Resultado res = {0, 0, 0};
-    clock_t inicio, fim;
+    Resultado res = {0, 0, 0, 0};
 
-    // 1. Geração do Dataset 
-    switch(cenario) {
-        case 1:  vet = geraOrdenados(tam, seed); break;
-        case 2:  vet = geraDecrescente(tam, seed); break;
-        case 3:  vet = geraQuaseOrdenados(tam, seed, 10); break; // 10% desordem
-        default: vet = geraAleatorios(tam, seed); break;
+    // gera os vetores para os testes
+    // o valor de seed, por convenção é 42
+    switch (cenario) {
+        case 1:
+            vet = geraOrdenados(tam, seed);
+            break;
+        case 2:
+            vet = geraDecrescente(tam, seed);
+            break;
+        case 3:
+            // porc% definida como 10, segundo a especificação
+            vet = geraQuaseOrdenados(tam, seed, 10);
+            break;
+        default:
+            vet = geraAleatorios(tam, seed);
+            break;
     }
 
-    // 2. Execução conforme a Categoria da biblioteca 
-    if (alg == MERGE || alg == QUICK) {
-        // Categoria B: Recebem métricas por parâmetro
-        m = alocaMetricas();
-        inicio = clock();
-        if (alg == MERGE) mergeSort(vet, 0, tam - 1, m);
-        else quickSort(vet, 0, tam - 1, m);
-        fim = clock();
-    } else {
-        // Categoria A: Retornam ponteiro de métricas
-        inicio = clock();
-        switch(alg) {
-            case BOLHA:    m = bolhaInteligente(vet, tam); break;
-            case SELECAO:  m = selecao(vet, tam); break;
-            case INSERCAO: m = insercao(vet, tam); break;
-            case SHELL:    m = shellSort(vet, tam); break;
-            case HEAP:     m = heapSort(vet, tam); break;
-            case BOZO:     m = bozoSort(vet, tam); break;
-            default: break;
+    // realiza os testes para o metodo indicado
+    // retorna as métricas, o tempo de execusão e a estabilidade do metodo por meio do tipo Resultado
+    // clock() retorna o tempo em segundos, multiplica-se por 1000.0 para obter os dados em ms
+    switch (alg) {
+        case BOLHAINTELIGENTE: {
+            clock_t inicio = clock();
+            m = bolhaInteligente(vet, tam);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
         }
-        fim = clock();
+        case SELECAO: {
+            clock_t inicio = clock();
+            m = selecao(vet, tam);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case INSERCAO: {
+            clock_t inicio = clock();
+            m = insercao(vet, tam);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case MERGE: {
+            clock_t inicio = clock();
+            m = alocaMetricas();
+            mergeSort(vet, 0, tam - 1, m);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case QUICK: {
+            clock_t inicio = clock();
+            m = alocaMetricas();
+            quickSort(vet, 0, tam - 1, m);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case SHELL: {
+            clock_t inicio = clock();
+            m = shellSort(vet, tam);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case HEAP: {
+            clock_t inicio = clock();
+            m = heapSort(vet, tam);
+            clock_t fim = clock();
+            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
     }
 
-    // 3. Coleta de dados
-    res.tempo = (double)(fim - inicio) / CLOCKS_PER_SEC;
-    if (m) {
-        res.comparacoes = m->comparacoes; // Acessível após o ajuste no .h 
-        res.movimentacoes = m->movimentacoes;
-    }
+    // salva as métricas em um arquivo .txt
+    // armazenas as métricas em Resultado
+    salvaMetricas(m, "metricas.txt");
+    lerMetricasArquivo("metricas.txt",&res.comparacoes,&res.movimentacoes);
 
-    // 4. Limpeza de Memória  
+    // salva um vetor com as requisições em um arquivo .txt
+    // verifica a estabilidade do metodo e armazena em Resultado
+    salvaVetor(vet, tam, "vetor.txt");
+    res.estavel = verificarEstabilidade("vetor.txt");
+
     liberaVetor(vet);
     liberaMetricas(m);
 
     return res;
-=======
-#include "ordenacao.h"
+}
+
+// realiza o benchmark para os casos de vetores aleatórios e quase ordenados
+// calcula a média de 30 testes
+Resultado mediaBenchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
+    int repeticoes = 30;
+    Resultado soma = {0, 0, 0, 0};
+
+    for (int i = 0; i < repeticoes; i++) {
+        Resultado r = benchmark(tam, seed + i, alg, cenario);
+        soma.tempo += r.tempo;
+        soma.comparacoes += r.comparacoes;
+        soma.movimentacoes += r.movimentacoes;
+    }
+
+    soma.tempo /= repeticoes;
+    soma.comparacoes /= repeticoes;
+    soma.movimentacoes /= repeticoes;
+
+    return soma;
+}
+
+// gera tabelas (tempo, comparações, movimentações) de tipo .csv com os dados de cada teste de algoritmo
+void gerarTabelas(Algoritmo alg, char *nomeAlg) {
+    int tamanhos[] = {10, 100, 1000, 10000};
+    int n = 4;
+    unsigned int seed = 42;
+    char nomeTempo[50], nomeComp[50], nomeMov[50];
+
+    //cria as tabelas, as acessa para escrita e cria os títulos das colunas
+    sprintf(nomeTempo, "%s_tempo.csv", nomeAlg);
+    sprintf(nomeComp, "%s_comp.csv", nomeAlg);
+    sprintf(nomeMov, "%s_mov.csv", nomeAlg);
+
+    FILE *ft = fopen(nomeTempo, "w");
+    FILE *fc = fopen(nomeComp, "w");
+    FILE *fm = fopen(nomeMov, "w");
+
+    fprintf(ft, "Teste;Tamanho;Aleatorio;Crescente;Decrescente;Quase;Estavel\n");
+    fprintf(fc, "Teste;Tamanho;Aleatorio;Crescente;Decrescente;Quase;Estavel\n");
+    fprintf(fm, "Teste;Tamanho;Aleatorio;Crescente;Decrescente;Quase;Estavel\n");
+
+    // calcula estabilidade, fixo vetor de tamanho 10000
+    Resultado testeEstab = benchmark(10000, seed, alg, 0);
+    int estavel = testeEstab.estavel;
+
+    // faz a chamada das funções benchmark e mediaBenchmark para obter os dados para as tabelas
+    for (int i = 0; i < n; i++) {
+        int tam = tamanhos[i];
+
+        Resultado r0 = mediaBenchmark(tam, seed, alg, 0);
+        Resultado r1 = benchmark(tam, seed, alg, 1);
+        Resultado r2 = benchmark(tam, seed, alg, 2);
+        Resultado r3 = mediaBenchmark(tam, seed, alg, 3);
+
+        fprintf(ft, "%d;%d;%.6f;%.6f;%.6f;%.6f;%s\n",
+                i + 1, tam, r0.tempo, r1.tempo, r2.tempo, r3.tempo, estavel ? "SIM" : "NAO");
+
+        fprintf(fc, "%d;%d;%llu;%llu;%llu;%llu;%s\n",
+                i + 1, tam, r0.comparacoes, r1.comparacoes, r2.comparacoes, r3.comparacoes, estavel ? "SIM" : "NAO");
+
+        fprintf(fm, "%d;%d;%llu;%llu;%llu;%llu;%s\n",
+                i + 1, tam, r0.movimentacoes, r1.movimentacoes, r2.movimentacoes, r3.movimentacoes, estavel ? "SIM" : "NAO");
+    }
+
+    fclose(ft);
+    fclose(fc);
+    fclose(fm);
+}
 
 int main() {
-    int tam = 1000;
-    unsigned int seed = 42;
-
-    // --- TESTE 1: Algoritmo que RETORNA as métricas (ex: Seleção) ---
-    r *vet1 = geraAleatorios(tam, seed); // 
-    met *m1 = selecao(vet1, tam);         // 
-
-    printf("--- Resultados: Selecao ---\n");
-    imprimeMetricas(m1);                 // 
-
-    liberaVetor(vet1);                   // 
-    liberaMetricas(m1);                  // 
-
-
-    // --- TESTE 2: Algoritmo que RECEBE as métricas por parâmetro (ex: MergeSort) ---
-    r *vet2 = geraAleatorios(tam, seed); // 
-    met *m2 = alocaMetricas();           // 
-
-    // O MergeSort ordena in-place e atualiza a struct m2
-    mergeSort(vet2, 0, tam - 1, m2);     // 
-
-    printf("\n--- Resultados: MergeSort ---\n");
-    imprimeMetricas(m2);                 // 
-
-    liberaVetor(vet2);                   // 
-    liberaMetricas(m2);                  // 
-
+    // realiza os testes para os metodos Bolha Inteligente, Seleção, Inserção, Merge Sort, Quick Sort, Shell Sort e Heap Sort
+    gerarTabelas(BOLHAINTELIGENTE, "BolhaInteligente");
+    gerarTabelas(SELECAO, "Selecao");
     return 0;
->>>>>>> b50bc7f737ea78efbef806dc89ef38ade6d649de
 }
