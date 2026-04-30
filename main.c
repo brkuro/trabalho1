@@ -1,7 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <windows.h>
 #include "ordenacao.h"
+
+// request type is defined by ordenacao.h
+
+typedef struct {
+    r *vet;
+    int tam;
+    met *m;
+} BozoArgs;
+
+DWORD WINAPI threadBozo(LPVOID arg) {
+    BozoArgs *args = (BozoArgs*) arg;
+    args->m = bozoSort(args->vet, args->tam);
+    return 0;
+}
 
 // enumeração dos métodos de 0 à 6
 // facilita a chamada dos métodos, pois permite o uso da estrutura switch-case
@@ -12,7 +27,9 @@ typedef enum {
     MERGE,
     QUICK,
     SHELL,
-    HEAP
+    HEAP,
+    BOZO,
+    BOLHAINTELIGENTEPRO
 } Algoritmo;
 
 // tipo definido para armazenar os resultados do benchmark
@@ -22,6 +39,27 @@ typedef struct {
     unsigned long long movimentacoes;
     int estavel;
 } Resultado;
+
+void bolhaInteligentePro(r *vet, int tam, Resultado *res) {
+    r temp;
+    int i = 0, count = 1;
+
+    while (i < tam && count){
+        count = 0;
+        for(int j = 1; j < tam - i; j++){
+            res->comparacoes++;
+            if(vet[j].user_id < vet[j-1].user_id){
+                temp = vet[j-1];
+                vet[j-1] = vet[j];
+                vet[j] = temp;
+                res->movimentacoes += 2;
+                count ++;
+            }
+        }
+        i++;
+    }
+    return;
+}
 
 // le as métricas do teste armazenadas em um vetor e as copia para as variáveis comp e mov
 void lerMetricasArquivo(char *nomeArquivo, unsigned long long *comp, unsigned long long *mov) {
@@ -90,21 +128,21 @@ Resultado benchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
             clock_t inicio = clock();
             m = bolhaInteligente(vet, tam);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case SELECAO: {
             clock_t inicio = clock();
             m = selecao(vet, tam);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case INSERCAO: {
             clock_t inicio = clock();
             m = insercao(vet, tam);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case MERGE: {
@@ -112,7 +150,7 @@ Resultado benchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
             m = alocaMetricas();
             mergeSort(vet, 0, tam - 1, m);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case QUICK: {
@@ -120,29 +158,77 @@ Resultado benchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
             m = alocaMetricas();
             quickSort(vet, 0, tam - 1, m);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case SHELL: {
             clock_t inicio = clock();
             m = shellSort(vet, tam);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
             break;
         }
         case HEAP: {
             clock_t inicio = clock();
             m = heapSort(vet, tam);
             clock_t fim = clock();
-            res.tempo = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case BOLHAINTELIGENTEPRO: {
+            clock_t inicio = clock();
+            bolhaInteligentePro(vet, tam, &res);
+            clock_t fim = clock();
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+            break;
+        }
+        case BOZO: {
+            clock_t inicio = clock();
+            int timeout = 0;
+
+            BozoArgs args;
+            args.vet = vet;
+            args.tam = tam;
+            args.m = NULL;
+
+            HANDLE hThread = CreateThread(NULL, 0, threadBozo, &args, 0, NULL);
+
+            DWORD result = WaitForSingleObject(hThread, 30000);
+
+            if (result == WAIT_TIMEOUT) {
+                printf("BozoSort interrompido (timeout 30s)\n");
+                TerminateThread(hThread, 0);
+                timeout = 1;
+            }
+            else {
+                m = args.m;
+            }
+
+            CloseHandle(hThread);
+
+            clock_t fim = clock();
+            res.tempo = 1000 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+
+            if (timeout) {
+                res.tempo = -1;
+                res.comparacoes = -1;
+                res.movimentacoes = -1;
+                res.estavel = 0;
+
+                liberaVetor(vet);
+                return res;
+            }
+
             break;
         }
     }
 
     // salva as métricas em um arquivo .txt
     // armazenas as métricas em Resultado
-    salvaMetricas(m, "metricas.txt");
-    lerMetricasArquivo("metricas.txt",&res.comparacoes,&res.movimentacoes);
+    if (alg != BOLHAINTELIGENTEPRO && m != NULL) {
+        salvaMetricas(m, "metricas.txt");
+        lerMetricasArquivo("metricas.txt",&res.comparacoes,&res.movimentacoes);
+    }
 
     // salva um vetor com as requisições em um arquivo .txt
     // verifica a estabilidade do metodo e armazena em Resultado
@@ -150,15 +236,15 @@ Resultado benchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
     res.estavel = verificarEstabilidade("vetor.txt");
 
     liberaVetor(vet);
-    liberaMetricas(m);
+    if (m != NULL)
+        liberaMetricas(m);
 
     return res;
 }
 
 // realiza o benchmark para os casos de vetores aleatórios e quase ordenados
 // calcula a média de 30 testes
-Resultado mediaBenchmark(int tam, unsigned int seed, Algoritmo alg, int cenario) {
-    int repeticoes = 30;
+Resultado mediaBenchmark(int tam, unsigned int seed, Algoritmo alg, int cenario, int repeticoes) {
     Resultado soma = {0, 0, 0, 0};
 
     for (int i = 0; i < repeticoes; i++) {
@@ -176,9 +262,7 @@ Resultado mediaBenchmark(int tam, unsigned int seed, Algoritmo alg, int cenario)
 }
 
 // gera tabelas (tempo, comparações, movimentações) de tipo .csv com os dados de cada teste de algoritmo
-void gerarTabelas(Algoritmo alg, char *nomeAlg) {
-    int tamanhos[] = {10, 100, 1000, 10000};
-    int n = 4;
+void gerarTabelas(Algoritmo alg, char *nomeAlg, int *tamanhos, int n, int repeticoes) {
     unsigned int seed = 42;
     char nomeTempo[50], nomeComp[50], nomeMov[50];
 
@@ -195,18 +279,27 @@ void gerarTabelas(Algoritmo alg, char *nomeAlg) {
     fprintf(fc, "Teste;Tamanho;Aleatorio;Crescente;Decrescente;Quase;Estavel\n");
     fprintf(fm, "Teste;Tamanho;Aleatorio;Crescente;Decrescente;Quase;Estavel\n");
 
+    int estavel = -1;
     // calcula estabilidade, fixo vetor de tamanho 10000
-    Resultado testeEstab = benchmark(10000, seed, alg, 0);
-    int estavel = testeEstab.estavel;
+    if (alg != BOZO) {
+        Resultado testeEstab = benchmark(10000, seed, alg, 0);
+        estavel = testeEstab.estavel;
+    }
+    else {
+        // calcula estabilidade, fixo vetor de tamanho 12
+        Resultado testeEstab = benchmark(12, seed, alg, 0);
+        estavel = testeEstab.estavel;
+    }
+
 
     // faz a chamada das funções benchmark e mediaBenchmark para obter os dados para as tabelas
     for (int i = 0; i < n; i++) {
         int tam = tamanhos[i];
 
-        Resultado r0 = mediaBenchmark(tam, seed, alg, 0);
+        Resultado r0 = mediaBenchmark(tam, seed, alg, 0, repeticoes);
         Resultado r1 = benchmark(tam, seed, alg, 1);
         Resultado r2 = benchmark(tam, seed, alg, 2);
-        Resultado r3 = mediaBenchmark(tam, seed, alg, 3);
+        Resultado r3 = mediaBenchmark(tam, seed, alg, 3, repeticoes);
 
         fprintf(ft, "%d;%d;%.6f;%.6f;%.6f;%.6f;%s\n",
                 i + 1, tam, r0.tempo, r1.tempo, r2.tempo, r3.tempo, estavel ? "SIM" : "NAO");
@@ -224,8 +317,26 @@ void gerarTabelas(Algoritmo alg, char *nomeAlg) {
 }
 
 int main() {
+    int tamanhos[] = {100, 1000, 10000, 100000};
+    int repeticoes = 30;
+    int n = 4;
+
     // realiza os testes para os metodos Bolha Inteligente, Seleção, Inserção, Merge Sort, Quick Sort, Shell Sort e Heap Sort
-    gerarTabelas(BOLHAINTELIGENTE, "BolhaInteligente");
-    gerarTabelas(SELECAO, "Selecao");
+    //gerarTabelas(BOLHAINTELIGENTE, "BolhaInteligente", tamanhos, n, repeticoes);
+    //gerarTabelas(SELECAO, "Selecao", tamanhos, n, repeticoes);
+    //gerarTabelas(INSERCAO, "Insercao", tamanhos, n, repeticoes);
+    //gerarTabelas(MERGE, "Merge", tamanhos, n, repeticoes);
+    gerarTabelas(QUICK, "Quick", tamanhos, n, repeticoes);
+    //gerarTabelas(SHELL, "Shell", tamanhos, n, repeticoes);
+    //gerarTabelas(HEAP, "Heap", tamanhos, n, repeticoes);
+    //gerarTabelas(BOLHAINTELIGENTEPRO, "BolhaInteligentePro", tamanhos, n, repeticoes);
+
+    repeticoes = 5;
+    tamanhos[0] = 4;
+    tamanhos[1] = 8;
+    tamanhos[2] = 10;
+    tamanhos[3] = 12;
+    //gerarTabelas(BOZO, "Bozo", tamanhos, n, repeticoes);
+
     return 0;
 }

@@ -1,2 +1,2 @@
-Comparacoes: 49994999
-Movimentacoes: 3034
+Comparacoes: 2133866
+Movimentacoes: 1919902
